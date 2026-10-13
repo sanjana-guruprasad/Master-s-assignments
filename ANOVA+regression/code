@@ -1,0 +1,93 @@
+install.packages("supernova")
+install.packages("readr")
+install.packages("sjlabelled")
+install.packages("fastDummies")
+install.packages("mosaic")
+install.packages("rstatix")
+install.packages("Hmisc")
+install.packages("ggpubr")
+install.packages("see")
+install.packages("performance")
+install.packages("car")
+install.packages("patchwork")
+
+library(mosaic)
+library(sjlabelled)
+library(fastDummies)
+library(supernova)
+library(readr)
+library(rstatix)
+library(Hmisc)
+library(ggpubr)
+library(see)
+library(performance)
+library(car)
+library(patchwork)
+
+music_data <- read_csv("C:\\Users\\Sanjana\\Downloads\\music_data.csv")
+music_data
+
+#Research Question - There is a statistically significant difference in productivity between the three conditions
+#Null Hypothesis - There is no statistically significant difference in productivity between the three conditions
+
+favstats(~productivity, condition, data=music_data)
+
+music <- dummy_cols(music_data, select_columns = "condition")
+music
+names(music)
+
+music %>%
+  ggplot(aes(x = productivity)) +
+  geom_histogram(aes(y = ..density..), binwidth = 10, colour = "black", fill = "white") +
+  geom_density(adjust = 4, alpha = .2, fill = "antiquewhite3") +
+  geom_vline(aes(xintercept = mean(productivity)), col = "black", linetype = "dashed", size = 1) +
+  ylab("Density") +
+  xlab("Productivity") +
+  ggtitle("Distribution of Productivity Scores") +
+  theme_minimal(base_size = 8)
+
+
+music.model <- lm(productivity ~ 1 + condition_music_no_choice + condition_music_choice, data=music)
+music.model
+supernova(music.model)
+check_model(music.model)
+
+music.model2 <- aov(productivity ~ 1 + condition, data=music)
+music.model2
+pairwise.t.test(music_data$productivity, music_data$condition, p.adj="bonf")
+check_model(music.model2)
+
+TukeyHSD(music.model2)
+
+x <- which(names(music) == "condition") # name of independent variable
+y <- which(
+  names(music) == "productivity" # name of outcome variable
+)
+method1 <- "anova" # overall test of main effect = anova
+method2 <- "t.test" # test of specific comparisons = t test
+my_comparisons <- list(c("music_no_choice", "music_choice"), c("music_no_choice", "no_music"), c("no_music", "music_choice")) # comparisons for post-hoc tests
+## building the plot
+library(ggpubr)
+for (i in y) {
+  for (j in x) {
+    p <- ggboxplot(music,
+                   x = colnames(music[j]), y = colnames(music[i]),
+                   color = colnames(music[j]),
+                   legend = "none",
+                   palette = "npg",
+                   add = "jitter"
+    )
+    print(
+      p + stat_compare_means(aes(label = paste0(..method.., ", p-value = ", ..p.format..)),
+                             method = method1, label.y = max(music[, i], na.rm = TRUE)
+      )
+      + stat_compare_means(comparisons = my_comparisons, method = method2, label = "p.format")
+    )
+  }
+}
+
+
+#1) Is there a statistically significant difference in productivity between the three conditions?
+#yes
+#2) Which conditions differed from which, and what was the condition that had the greatest levels of productivity?
+#there was a significant difference between employees who chose their music versus employees who didn't choose as well as between employees who chose their music versus employee who had no music. but employees who couldn't choose their music did not differ in productivity as significantly as employees who didn't have music.
