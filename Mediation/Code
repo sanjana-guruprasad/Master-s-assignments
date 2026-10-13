@@ -1,0 +1,121 @@
+install.packages("readr")
+install.packages("tidyverse")
+install.packages("lm.beta")
+install.packages("Hmisc")
+install.packages("mediation")
+install.packages("car")
+install.packages("lavaan")
+install.packages("see")
+install.packages("performance")
+install.packages("semPlot")
+
+# Load libraries
+library(readr)
+library(tidyverse)
+library(lm.beta)
+library(Hmisc)
+library(mediation)
+library(car)
+library(lavaan)
+library(performance)
+library(see)
+library(semPlot)
+
+#First aggregate the variables and average them out
+college <- read.csv("C:\\Users\\Sanjana\\Downloads\\college.csv")
+college
+
+college <- college %>%
+  mutate(meanopen = (open1 + open2 + open3 + open4)/4)
+college
+
+college <- college %>%
+  mutate(meansc = (sc1 + sc2 + sc3 + sc4)/4)
+college
+
+college <- college %>%
+  mutate(meanswb = (swb1 + swb2 + swb3)/3)
+college
+
+#build linear model and run a global check on it to see if it satisfies the assumption.
+
+
+# Run your model
+model1 <- lm(meanswb ~ 1 + meanopen + meansc, data=college)
+model1
+check_model(model1)
+
+hist(college$meanopen)
+hist(college$meansc)
+hist(college$meanswb)
+
+qqnorm(college$meanopen)
+qqline(college$meanopen)
+qqnorm(college$meansc)
+qqline(college$meansc)
+qqnorm(college$meanswb)
+qqline(college$meanswb)
+
+rcorr(as.matrix(college[,c("meanopen","meansc", "meanswb")], type="pearson"))
+
+## Simple regression: The a and c paths
+model.c <- lm(meanswb ~ 1 + meanopen, data=college)
+summary(model.c)
+lm.beta(model.c)
+
+model.a <- lm(meansc ~ 1+ meanopen, data = college)
+summary (model.a)
+lm.beta(model.a)
+
+## Multiple regression: The c' and b paths
+model.b <- lm(meanswb ~ 1 + meanopen + meansc, data = college)
+summary(model.b)
+lm.beta(model.b)
+
+ab <- 0.42 * 0.44
+ab
+
+0.1848 + 0.06
+
+mediation <- mediate(model.a, model.b, treat="meanopen", mediator="meansc", boot=TRUE, sims=5000, boot.ci.type="perc", conf.level= 0.95)
+summary(mediation)
+
+
+#2) Is the relationship between openness and subjective well-being mediated by self compassion in college students
+#No. it is no significantly mediated by self compassion in college students
+
+med.model <- "
+# the c and b paths
+  meanswb ~ c * meanopen + b * meansc
+# the a path
+  meansc ~ a * meanopen
+# indirect and total effects
+ab := a*b
+total := ab+c
+"
+
+mediation.model.fit <-  sem(med.model, data=college, se = "bootstrap", bootstrap = 5000)
+summary(mediation.model.fit, fit.measures=TRUE, standardized=TRUE, ci = TRUE)
+lavInspect(mediation.model.fit, what = "rsquare")
+semPaths(mediation.model.fit, "std")
+
+#run overidentified model
+med.model.overidentified <- "
+# the b paths
+  meanswb ~ b * meansc
+# the a path
+  meansc ~ a * meanopen
+# indirect effect
+ab := a*b
+"
+mediation.model.fit1 <-  sem(med.model.overidentified, data=college, se = "bootstrap", bootstrap = 5000)
+summary(mediation.model.fit1, fit.measures=TRUE, standardized=TRUE, ci = TRUE)
+lavInspect(mediation.model.fit1, what = "rsquare")
+semPaths(mediation.model.fit1, "std")
+
+
+#1) Does the hypothesized mediation model fit the data?
+#SRMR = RMSEA = 0 {perfect fit}, CFI + TLI = 1 {perfect fit} Fully mediated model
+
+
+
