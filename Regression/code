@@ -1,0 +1,187 @@
+install.packages("supernova")
+install.packages("readr")
+install.packages("tidyverse")
+install.packages("ggplot2")
+install.packages("lm.beta")
+install.packages("ggpubr")
+install.packages("mosaic")
+install.packages("Hmisc")
+install.packages("see")
+install.packages("performance")
+install.packages("car")
+install.packages("patchwork")
+
+library(supernova)
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(lm.beta)
+library(ggpubr)
+library(mosaic)
+library(Hmisc)
+library(see)
+library(performance)
+library(car)
+library(patchwork)
+
+climate <- read.csv("C:\\Users\\Sanjana\\Downloads\\climate_data.csv")
+head(climate)
+
+favstats(~gov_support, data=climate)
+favstats(~neg_emotion, data=climate)
+
+climate %>%
+  ggplot(aes(x= gov_support)) +
+  geom_histogram(aes(y=..density..), binwidth=.4, colour="black", fill="white") +
+  geom_density(adjust = 4, alpha = .2, fill = "antiquewhite3") +
+  geom_vline(aes(xintercept=mean(gov_support)), col="black", linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=median(gov_support)), col="black", size=1) +
+  ylab("Density") +
+  xlab("Government Support")+
+  ggtitle("Support for government climate change policies") +
+  theme_minimal(base_size = 8)
+
+climate %>%
+  ggplot(aes(x= neg_emotion)) +
+  geom_histogram(aes(y=..density..), binwidth=.4, colour="black", fill="white") +
+  geom_density(adjust = 4, alpha = .2, fill = "antiquewhite3") +
+  geom_vline(aes(xintercept=mean(neg_emotion)), col="black", linetype="dashed", size=1) +
+  geom_vline(aes(xintercept=median(neg_emotion)), col="black", size=1) +
+  ylab("Density") +
+  xlab("Negative emotion")+
+  ggtitle("Negative emotions towards climate change") +
+  theme_minimal(base_size = 8)
+
+climate_cov <- climate %>%
+  select (gov_support, neg_emotion)
+cov(climate_cov, method = "spearman")
+
+climate_cov <- climate %>%
+  select (gov_support, neg_emotion)
+cov(climate_cov, method = "pearson")
+
+#Do negative emotions about the impact of global warming correlate with support for government climate change policy?
+
+rcorr(as.matrix (climate_cov), type = "pearson")
+
+climate_cov %>%
+  ggplot(aes(x = neg_emotion, y = gov_support)) +
+  geom_point() +
+  stat_smooth(method = "lm",
+              col = "red",
+              se = FALSE,
+              size = 1) +
+  theme_classic(base_size = 8)
+
+#Low but significant correlation
+
+#Can negative emotions about the impact of global warming be used to make predictions about support for government climate change policy?
+
+climate.model <- lm(gov_support ~ 1 + neg_emotion, data = climate)
+climate.model
+summary(climate.model)
+confint(climate.model)
+check_model(climate.model)
+climate$zgov_support <- scale(climate$gov_support)
+climate$zneg_emotion <- scale(climate$neg_emotion)
+climate
+
+lm.beta(climate.model)
+#regression coefficient is significant but low
+
+climate$predicted <- predict(climate.model)
+climate
+
+climate$residuals <- resid(climate.model)
+climate
+
+supernova(climate.model)
+
+#3) a. Does the effect of negative emotions on government support remain in a multiple regression model controlling for egalitarian and individualism?
+#b. When age and gender is added to the multiple regression model in 3a, what is the most important predictor of government support (i.e., age, gender, negative emotions, egalitarianism, or individualism)?
+
+rcorr(as.matrix(climate[,c("neg_emotion","gov_support", "egal", "indv")], type="pearson"))
+
+multiple.climate.model <- lm(gov_support ~ 1 + neg_emotion + egal + indv, data = climate)
+summary(multiple.climate.model)
+supernova(multiple.climate.model)
+check_model(multiple.climate.model)
+
+#holding egalitarianism and individualism constant, the impact of negative emption on government support isn't significant. it only increases by 0.06 units
+#corellations (significant) : negative emotion has positive correlation with government support and egalitarianism but negative correlation with individualism. individualism and government support are not correlated significnatly. individualism has negative correlation with negative emotion and egalitarianism
+
+lm.beta(multiple.climate.model)
+#Holding negative emotion and individualism constant, for every 1-unit increase in egalitarianism, government support increases by 0.32 units
+
+multiple.climate.model1 <- lm(gov_support ~ 1 + neg_emotion + egal + indv + age + gender, data = climate)
+summary(multiple.climate.model1)
+supernova(multiple.climate.model1)
+shapiro.test(multiple.climate.model1$residuals)
+
+qqnorm(multiple.climate.model1$residuals)
+qqline(multiple.climate.model1$residuals)
+hist(multiple.climate.model1$residuals)
+multiple.climate.model2 <- Boot(multiple.climate.model1, R=5000)
+summary(multiple.climate.model2)
+confint(multiple.climate.model2, type="perc")
+
+
+#gender explains 1% of the model, age explains 2%, individualism explain 0.3%, egalitarianism explains 3% and negative emotion explains 0.4%. In summary, neither of these factors majorly explain support for government climate change policies.
+
+
+# plot 1, simple regression model
+climate %>%
+  ggplot(aes(x = neg_emotion, y = gov_support)) +
+  geom_point() +
+  geom_hline(aes(yintercept=mean(gov_support)), col="blue", size=1) +
+  stat_smooth(method = "lm",
+              col = "red",
+              se = FALSE,
+              size = 1) +
+  ggtitle("Simple Regression Model") +
+  stat_cor() +
+  stat_regline_equation(label.y = 7) +
+  theme_classic(base_size = 8)
+# plot 2, multiple regression model
+
+climate$predicted <- predict(multiple.climate.model)
+climate
+climate$predicted1 <- predict(multiple.climate.model1)
+climate
+predicted.residuals <- resid(multiple.climate.model)
+predicted.residuals
+
+climate %>%
+  ggplot(aes(x = predicted, y = gov_support)) +
+  geom_point() +
+  geom_hline(aes(yintercept=mean(predicted)), col="blue", size=1) +
+  stat_smooth(method = "lm",
+              col = "red",
+              se = FALSE,
+              size = 1) +
+  ggtitle("Multiple Regression Model") +
+  stat_cor() +
+  stat_regline_equation(label.y = 7) +
+  theme_classic(base_size = 8)
+
+#if you draw a regression model controlling for age and gender, you get a stronger upward line
+climate %>%
+  ggplot(aes(x = predicted1, y = gov_support)) +
+  geom_point() +
+  geom_hline(aes(yintercept=mean(predicted1)), col="blue", size=1) +
+  stat_smooth(method = "lm",
+              col = "red",
+              se = FALSE,
+              size = 1) +
+  ggtitle("Multiple Regression Model") +
+  stat_cor() +
+  stat_regline_equation(label.y = 7) +
+  theme_classic(base_size = 8)
+
+climate_full <- climate %>%
+  select(gov_support, neg_emotion, egal, indv, age, gender)
+
+cor_matrix <- rcorr(as.matrix(climate_full), type = "pearson")
+
+# Use the correlation matrix from rcorr (it's stored in cor_matrix$r)
+heatmap(cor_matrix$r)
