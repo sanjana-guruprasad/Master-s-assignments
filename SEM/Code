@@ -1,0 +1,112 @@
+install.packages("corpcor")
+install.packages("GPArotation")
+install.packages("psych")
+install.packages("tidyverse")
+install.packages("lavaan")
+install.packages("semPlot")
+install.packages("Hmisc")
+
+library(corpcor)
+library(GPArotation)
+library(psych)
+library(tidyverse)
+library(lavaan)
+library(semPlot)
+library(Hmisc)
+
+academics <- read.csv("C:\\Users\\Sanjana\\Downloads\\academic.csv")
+head(academics)
+
+cfa.model <- "
+perfectionism =~ 1*per1 + per2 + per3
+rumination=~ 1*rum1 + rum2+ rum3
+exhaustion =~ 1*ex1 +ex2+ ex3+ ex4
+"
+
+cfa.fit <- cfa(cfa.model, data=academics)
+cfa.fit
+summary(cfa.fit, fit.measures=TRUE, standardized=TRUE)
+
+semPaths(cfa.fit, "std")
+
+#1) Does the measurement model for perfectionism, rumination, and exhaustion fit the data?
+#yes!CFI = 0.97, TLI = 0.96, RMSEA= 0.06, SRMR = 0.05
+
+
+academics <- academics %>%
+  mutate(perfectionism = (per1 + per2 + per3)/3)
+academics <- academics %>%
+  mutate(rumination = (rum1 + rum2+ rum3)/3)
+academics <- academics %>%
+  mutate(exhaustion = (ex1 +ex2+ ex3+ ex4)/4)
+
+rcorr(as.matrix(academics[,c("perfectionism", "rumination", "exhaustion")], type="pearson"))
+
+#as given in the fit summary, perfectionism and exhaustion aren't significnatly correlated
+
+# save standardised factor loadings in object s1
+s1 <- standardizedSolution(cfa.fit)
+s2 <- standardizedSolution(cfa.fit)
+s3 <- standardizedSolution(cfa.fit)
+
+# extract from s1 standardised estimates (est.std) form only parent conditional regard
+s1 <- s1$est.std[s1$lhs == "perfectionism"]
+s2 <- s2$est.std[s2$lhs == "rumination"]
+s3 <- s3$est.std[s3$lhs == "exhaustion"]
+
+# Calculate residual variances (measurement error) for each indicator
+re1 <- 1 - s1^2
+re2 <- 1 - s2^2
+re3 <- 1 - s3^2
+
+# Calculate composite reliability using the formula:
+sum(s1)^2 / (sum(s1)^2 + sum(re1))
+sum(s2)^2 / (sum(s2)^2 + sum(re2))
+sum(s3)^2 / (sum(s3)^2 + sum(re3))
+
+#composite reliability of 0.84- good reliability
+
+structural.model2 <-"
+perfectionism1 =~ 1*per1 + per2 + per3
+rumination1=~ 1*rum1 + rum2+ rum3
+exhaustion1 =~ 1*ex1 +ex2+ ex3+ ex4
+# structural portion of model with direct paths added
+exhaustion1 ~ c*perfectionism1 + b*rumination1
+rumination1 ~ a * perfectionism1
+# the indirect effects
+ab := a*b
+total := ab + c
+"
+
+academics.model.fit <-  sem(structural.model2, data=academics, se = "bootstrap", bootstrap = 5000)
+summary(academics.model.fit, fit.measures=TRUE, standardized=TRUE, ci = TRUE)
+
+parameterestimates(academics.model.fit, boot.ci.type = "perc", standardized = TRUE)
+
+lavInspect(academics.model.fit, what = "rsquare")
+
+structural.model2 <-"
+perfectionism1 =~ 1*per1 + per2 + per3
+rumination1=~ 1*rum1 + rum2+ rum3
+exhaustion1 =~ 1*ex1 +ex2+ ex3+ ex4
+# structural portion of model with direct paths added
+exhaustion1 ~ b*rumination1
+rumination1 ~ a * perfectionism1
+# the indirect effects
+ab := a*b
+"
+
+academics.model.fit1 <-  sem(structural.model2, data=academics, se = "bootstrap", bootstrap = 5000)
+summary(academics.model.fit1, fit.measures=TRUE, standardized=TRUE, ci = TRUE)
+
+parameterestimates(academics.model.fit1, boot.ci.type = "perc", standardized = TRUE)
+
+semPaths(academics.model.fit1, "std")
+lavInspect(academics.model.fit1, what = "rsquare")
+
+#2)  a. Does the hypothesized mediation model fit the data?
+#yes CFI = 0.97, TLI = 0.96, RMSEA= 0.06, SRMR = 0.05
+  #b. What is the is size, direction, and statistical significance of the paths in the hypothesized mediation model?
+#a= 0.488, b=0.615, c= 0.191, c'= -0.109. only ab, a, and b is significant
+  #c. Does rumination significantly mediate the relationship between perfectionism and exhaustion?
+#indirect effect is significant so rumination does mediate the relationships between exhaustion and perfectionism
